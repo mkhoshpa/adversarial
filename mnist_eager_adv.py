@@ -13,13 +13,17 @@ tfe = tf.contrib.eager
 tf.enable_eager_execution()
 
 # Fetch and format the mnist data
-(mnist_images, mnist_labels), _ = tf.keras.datasets.mnist.load_data()
+(mnist_images, mnist_labels), (test_images,test_labels) = tf.keras.datasets.mnist.load_data()
 
 dataset = tf.data.Dataset.from_tensor_slices(
     (tf.cast(mnist_images[..., tf.newaxis] / 255, tf.float32),
      tf.cast(mnist_labels, tf.int64)))
 dataset = dataset.shuffle(1000).batch(32)
 
+test_dataset= tf.data.Dataset.from_tensor_slices(
+    (tf.cast(test_images[..., tf.newaxis] / 255, tf.float32),
+     tf.cast(test_labels, tf.int64)))
+test_dataset = test_dataset.shuffle(1000).batch(32)
 
 def loss_fn(x, y):
     logits = mnist_model(x, training=False)
@@ -163,7 +167,7 @@ num_epochs = 1
 for epoch in range(num_epochs):
     epoch_loss_avg = tfe.metrics.Mean()
     epoch_accuracy = tfe.metrics.Accuracy()
-    for (batch, (images, labels)) in enumerate(dataset.take(500)):
+    for (batch, (images, labels)) in enumerate(dataset.take(200)):
         with tf.GradientTape() as tape:
             logits = mnist_model(images, training=True)
             loss_value = tf.losses.sparse_softmax_cross_entropy(labels, logits)
@@ -190,6 +194,21 @@ plt.plot(loss_history)
 plt.xlabel('Batch #')
 plt.ylabel('Loss [entropy]')
 plt.show()
+
+avg_loss = tfe.metrics.Mean('loss', dtype=tf.float32)
+accuracy = tfe.metrics.Accuracy()
+for (batch, (images, labels)) in enumerate(test_dataset):
+  logits = mnist_model(images, training=False)
+  avg_loss(tf.reduce_mean(
+     tf.losses.sparse_softmax_cross_entropy(
+          logits=logits, labels=labels)))
+  accuracy(
+      tf.argmax(logits, axis=1, output_type=tf.int64),
+      tf.cast(labels, tf.int64))
+print('Test set: Average loss: %.4f, Accuracy: %4f%%\n' %
+        (avg_loss.result(), 100 * accuracy.result()))
+
+
 for (batch, (images, labels)) in enumerate(dataset.take(1)):
     t = random.randint(0, 31)
     logits = mnist_model((images[t:t + 1]).numpy(), training=False)
