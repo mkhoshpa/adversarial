@@ -1,3 +1,3 @@
 # Adversarial
 
-Creating adverarial ecamples for mnist using Fast Gradient Method
+Creating adverarial examples for mnist using Fast Gradient Method
