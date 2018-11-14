@@ -1,13 +1,9 @@
 import matplotlib.pyplot as plt
-import os
-import time
 import numpy as np
-import random
 import copy
 
 import tensorflow as tf
 
-# pylint: enable=g-bad-import-order
 
 
 tfe = tf.contrib.eager
@@ -66,9 +62,6 @@ def fgm(x,
         y=None,
         eps=0.80,
         ord=np.inf,
-        clip_min=None,
-        clip_max=None,
-        targeted=False,
         sanity_checks=True):
     """
     TensorFlow implementation of the Fast Gradient Method.
@@ -84,27 +77,13 @@ def fgm(x,
     :param eps: the epsilon (input variation parameter)
     :param ord: (optional) Order of the norm (mimics NumPy).
                 Possible values: np.inf, 1 or 2.
-    :param clip_min: Minimum float value for adversarial example components
-    :param clip_max: Maximum float value for adversarial example components
-    :param targeted: Is the attack targeted or untargeted? Untargeted, the
-                     default, will try to make the label incorrect. Targeted
-                     will instead try to move in the direction of being more
-                     like y.
+   
     :return: a tensor for the adversarial example
     """
     logits = model(x, training=False)
 
     asserts = []
 
-    # If a data range was specified, check that the input was in that range
-    if clip_min is not None:
-        asserts.append(utils_tf.assert_greater_equal(x, tf.cast(clip_min, x.dtype)))
-
-    if clip_max is not None:
-        asserts.append(utils_tf.assert_less_equal(x, tf.cast(clip_max, x.dtype)))
-
-    # Make sure the caller has not passed probs by accident
-    # assert logits.op.type != 'Softmax'
 
     if y is None:
         # Using model predictions as ground truth to avoid label leaking
@@ -156,10 +135,6 @@ def fgm(x,
     adv_x = x + scaled_grad
 
     # If clipping is needed, reset all values outside of [clip_min, clip_max]
-    if (clip_min is not None) or (clip_max is not None):
-        # We don't currently support one-sided clipping
-        assert clip_min is not None and clip_max is not None
-        adv_x = utils_tf.clip_by_value(adv_x, clip_min, clip_max)
 
     if sanity_checks:
         with tf.control_dependencies(asserts):
@@ -227,7 +202,6 @@ plt.show()
 avg_loss = tfe.metrics.Mean('loss', dtype=tf.float32)
 accuracy = tfe.metrics.Accuracy()
 for (batch, (images, labels)) in enumerate(test_dataset.take(1)):
-  print('fff')
   logits = mnist_model(images, training=False)
   avg_loss(tf.reduce_mean(
       tf.nn.softmax_cross_entropy_with_logits_v2(
@@ -269,13 +243,11 @@ sub_dataset = sub_dataset.shuffle(150).batch(32)
 
 x_sub = tf.cast(x_sub[..., tf.newaxis] / 255, tf.float32)
 y_sub=tf.cast(y_sub, tf.int64)
-print(y_sub[0])
-print('dddddd')
 ITERATION = 3
 LAMBDA=0.1
 for i in range(ITERATION):
     #train sub
-    num_epochs = 2
+    num_epochs = 4
     for epoch in range(num_epochs):
         epoch_loss_avg = tfe.metrics.Mean()
         epoch_accuracy = tfe.metrics.Accuracy()
@@ -315,23 +287,15 @@ for i in range(ITERATION):
             grads = get_grad(images)
             n=len(new_x)
             for j in range(n):
-                #print(new_x[j].shape)
-                #print(grads[tf.argmax(labels[j], axis=0, output_type=tf.int64)][j].shape)
                 new_x[j]= new_x[j]+ LAMBDA * grads[tf.argmax(labels[j], axis=0, output_type=tf.int64)][j]
             new_y = mnist_model(new_x, training=False)
             new_y = tf.argmax(new_y, axis=1, output_type=tf.int64)
             categorical = np.zeros((n, 10))
             categorical[np.arange(n), new_y] = 1
-            #print(categorical)
-            print(y_sub.shape)
-            print(categorical.shape)
-            print(x_sub.shape)
-            print(new_x.shape)
             y_sub = np.vstack([y_sub,categorical])
             x_sub = np.vstack([x_sub,new_x])
 
     sub_dataset = tf.data.Dataset.from_tensor_slices((x_sub,y_sub))
     sub_dataset = sub_dataset.shuffle(150).batch(32)
 
-
-print(x_sub)
+# now sub_model can be used to craft adverserial examples using fgm or jsma.
