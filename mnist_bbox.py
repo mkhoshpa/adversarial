@@ -42,12 +42,9 @@ def get_logit(x, class_ind):
 
 
 def get_grad(x):
-    np_dtype = np.dtype('float32')
 
     logits = mnist_model(x, training=False)
     nb_classes = len(logits[0].numpy())
-
-    nb_features = np.product(x.get_shape().as_list()[1:])
 
     # Compute the Jacobian components
     list_derivatives = []
